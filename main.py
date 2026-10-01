@@ -20,7 +20,7 @@ from flask import Flask
 # CONFIG
 # ============================================================
 
-BOT_TOKEN = os.environ.get("8958722180:AAHC1yrv-fzwMbYV_-bmw0CB0UxoFzR1Xlw")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 DEVELOPER_URL = "https://t.me/animefreeking"
 
