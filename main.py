@@ -1,21 +1,9 @@
 # ============================================================
-# IMPORTANT
-# ============================================================
-# Replace your BOT_TOKEN with a NEW token from BotFather.
-# The token previously posted in chat should be revoked.
-#
-# This version adds:
-# 1. Per-user final post numbering
-# 2. Inline search: @YourBot 1
-# 3. Each user has their own Post #1, #2, #3...
-# 4. Wrong/non-existing number returns NO RESULTS
-# 5. Final media + caption + URL buttons are returned inline
-# 6. Bot username is obtained automatically from Telegram
-# 7. Welcome message remains protected
-# 8. Final post remains protected
-# 9. Editor post is deleted when Done is clicked
+# POST BUTTON MAKER BOT
+# Render Web Service + Telegram Bot
 # ============================================================
 
+import os
 import telebot
 from telebot import types
 import sqlite3
@@ -24,23 +12,35 @@ import time
 import logging
 import random
 from datetime import datetime
+from threading import Thread
+from flask import Flask
+
 
 # ============================================================
 # CONFIG
 # ============================================================
 
-BOT_TOKEN = "8958722180:AAHC1yrv-fzwMbYV_-bmw0CB0UxoFzR1Xlw"
+BOT_TOKEN = os.environ.get("8958722180:AAHC1yrv-fzwMbYV_-bmw0CB0UxoFzR1Xlw")
 
 DEVELOPER_URL = "https://t.me/animefreeking"
 
 ADMIN_IDS = [8546199829]
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+if not BOT_TOKEN:
+    raise RuntimeError(
+        "BOT_TOKEN environment variable is not set!"
+    )
+
+bot = telebot.TeleBot(
+    BOT_TOKEN,
+    parse_mode="HTML"
+)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
 
 # ============================================================
 # DATABASE
@@ -83,22 +83,6 @@ CREATE TABLE IF NOT EXISTS stats (
 )
 """)
 
-# ============================================================
-# FINAL POSTS
-#
-# post_number is PER USER.
-#
-# User A:
-#   1
-#   2
-#   3
-#
-# User B:
-#   1
-#   2
-#
-# ============================================================
-
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS final_posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,16 +97,6 @@ CREATE TABLE IF NOT EXISTS final_posts (
 )
 """)
 
-# ============================================================
-# CHANNELS WHERE THE BOT IS ADMIN
-#
-# Filled automatically whenever Telegram tells us (via a
-# my_chat_member update) that this bot was made admin of a
-# channel. added_by is whoever performed that promotion, so
-# the "Forward" button only ever lists channels that THIS
-# user personally added the bot to.
-# ============================================================
-
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS bot_channels (
     chat_id INTEGER PRIMARY KEY,
@@ -133,6 +107,7 @@ CREATE TABLE IF NOT EXISTS bot_channels (
 """)
 
 db.commit()
+
 
 # ============================================================
 # DATABASE FUNCTIONS
@@ -247,6 +222,7 @@ def is_admin(user_id):
 # ============================================================
 
 def get_next_post_number(user_id):
+
     cursor.execute(
         """
         SELECT MAX(post_number)
@@ -272,7 +248,10 @@ def save_final_post(
     buttons
 ):
     try:
-        post_number = get_next_post_number(user_id)
+
+        post_number = get_next_post_number(
+            user_id
+        )
 
         cursor.execute(
             """
@@ -305,9 +284,11 @@ def save_final_post(
         return post_number
 
     except Exception as e:
+
         logging.error(
             f"Error saving final post: {e}"
         )
+
         return None
 
 
@@ -316,6 +297,7 @@ def get_final_post(
     post_number
 ):
     try:
+
         cursor.execute(
             """
             SELECT
@@ -349,9 +331,11 @@ def get_final_post(
         }
 
     except Exception as e:
+
         logging.error(
             f"Error getting final post: {e}"
         )
+
         return None
 
 
@@ -365,6 +349,7 @@ def upsert_bot_channel(
     added_by
 ):
     try:
+
         cursor.execute(
             """
             INSERT INTO bot_channels
@@ -375,19 +360,26 @@ def upsert_bot_channel(
                 added_by = excluded.added_by,
                 updated_at = CURRENT_TIMESTAMP
             """,
-            (chat_id, title, added_by)
+            (
+                chat_id,
+                title,
+                added_by
+            )
         )
 
         db.commit()
 
     except Exception as e:
+
         logging.error(
             f"Error saving bot channel: {e}"
         )
 
 
 def remove_bot_channel(chat_id):
+
     try:
+
         cursor.execute(
             "DELETE FROM bot_channels WHERE chat_id = ?",
             (chat_id,)
@@ -396,13 +388,16 @@ def remove_bot_channel(chat_id):
         db.commit()
 
     except Exception as e:
+
         logging.error(
             f"Error removing bot channel: {e}"
         )
 
 
 def get_user_channels(user_id):
+
     try:
+
         cursor.execute(
             """
             SELECT chat_id, title
@@ -416,9 +411,11 @@ def get_user_channels(user_id):
         return cursor.fetchall()
 
     except Exception as e:
+
         logging.error(
             f"Error listing bot channels: {e}"
         )
+
         return []
 
 
@@ -435,31 +432,18 @@ def get_session(user_id):
 
         sessions[user_id] = {
             "state": "idle",
-
             "chat_id": None,
-
             "source_message_id": None,
-
             "source_file_id": None,
-
             "post_message_id": None,
-
             "final_post_message_id": None,
-
             "welcome_message_id": None,
-
             "message_type": None,
-
             "caption": "",
-
             "buttons": [],
-
             "temp_text": "",
-
             "temp_url": "",
-
             "all_message_ids": [],
-
             "protected_message_ids": []
         }
 
@@ -853,8 +837,6 @@ Example:
 💡 Type /help for more info
 """
 
-        # Add as many image URLs as you like here.
-        # One is picked at random every time /start is used.
         WELCOME_IMAGE_URLS = [
             "https://i.ibb.co/hJtxbHzk/IMG-20260820-122329-775.jpg",
             "https://i.ibb.co/cKfmrG32/IMG-20260927-091223-106.jpg",
@@ -888,7 +870,6 @@ Example:
 
         session = get_session(user_id)
 
-        # NEVER delete welcome message
         session[
             "welcome_message_id"
         ] = sent.message_id
@@ -1190,7 +1171,6 @@ def back_welcome(call):
 
     session = get_session(user_id)
 
-    # Welcome message was intentionally not deleted.
     welcome_id = session.get(
         "welcome_message_id"
     )
@@ -1902,17 +1882,6 @@ def receive_post(
 
     if media_type == "text":
 
-        # ====================================================
-        # Keep the ORIGINAL formatting (bold, italic, quote
-        # block, spoiler, links, etc.) exactly as the user
-        # sent it — not just the plain text. telebot converts
-        # the message's formatting entities into the matching
-        # HTML tags (e.g. a Telegram "Quote" becomes
-        # <blockquote>...</blockquote>), and since the bot
-        # sends with parse_mode="HTML", it comes back out
-        # looking identical to what was sent in.
-        # ====================================================
-
         session[
             "caption"
         ] = (
@@ -2150,24 +2119,18 @@ def send_editor_post(
 
 
 # ============================================================
-# REAL BUTTON COLOUR (Telegram Bot API 9.4+)
-#
-# Since Feb 2026, Telegram actually supports colouring a real
-# inline button via a "style" field: "primary" (blue),
-# "success" (green), "danger" (red). Only these 3 + default
-# are possible — Telegram does not allow arbitrary custom
-# colours, just these built-in ones.
-#
-# The pyTelegramBotAPI version pinned in requirements.txt may
-# predate this field, so we subclass InlineKeyboardButton and
-# inject "style" directly into the outgoing JSON ourselves —
-# this works even if the installed library doesn't know about
-# "style" yet.
+# COLOURED BUTTON
 # ============================================================
 
 class ColoredButton(types.InlineKeyboardButton):
 
-    def __init__(self, text, url=None, style=None, **kwargs):
+    def __init__(
+        self,
+        text,
+        url=None,
+        style=None,
+        **kwargs
+    ):
 
         super().__init__(
             text=text,
@@ -2426,10 +2389,6 @@ def finish(call):
 
     try:
 
-        # ====================================================
-        # DELETE EDITOR POST
-        # ====================================================
-
         delete_protected_messages(
             user_id,
             chat_id
@@ -2452,17 +2411,9 @@ def finish(call):
             "buttons"
         ]
 
-        # ====================================================
-        # FINAL KEYBOARD (real Telegram colours applied)
-        # ====================================================
-
         keyboard = build_url_keyboard(
             buttons
         )
-
-        # ====================================================
-        # SEND FINAL POST
-        # ====================================================
 
         if (
             message_type == "photo"
@@ -2541,10 +2492,6 @@ def finish(call):
 
             return
 
-        # ====================================================
-        # SAVE FINAL POST FOR INLINE MODE
-        # ====================================================
-
         post_number = save_final_post(
             user_id=user_id,
             message_type=message_type,
@@ -2559,10 +2506,6 @@ def finish(call):
                 "Unable to save final post."
             )
 
-        # ====================================================
-        # FINAL POST NEVER GETS DELETED
-        # ====================================================
-
         session[
             "final_post_message_id"
         ] = final_post.message_id
@@ -2570,10 +2513,6 @@ def finish(call):
         session[
             "state"
         ] = "finished"
-
-        # ====================================================
-        # SUCCESS MESSAGE (+ Forward-to-channel button)
-        # ====================================================
 
         forward_keyboard = types.InlineKeyboardMarkup()
 
@@ -2604,12 +2543,6 @@ You can now share this post using Telegram's native share/forward feature.
             user_id,
             success_msg.message_id
         )
-
-        # ====================================================
-        # RESET SESSION
-        #
-        # Welcome + Final are preserved.
-        # ====================================================
 
         welcome_id = session.get(
             "welcome_message_id"
@@ -3021,11 +2954,6 @@ def delete_saved(call):
 
 # ============================================================
 # INLINE MODE
-#
-# @BOT_USERNAME 1
-#
-# Only the current inline user's posts are searched.
-#
 # ============================================================
 
 @bot.inline_handler(
@@ -3035,7 +2963,6 @@ def inline_query(query):
 
     user_id = query.from_user.id
 
-    # Register inline user
     register_user(
         user_id,
         query.from_user.username or "",
@@ -3046,10 +2973,6 @@ def inline_query(query):
     query_text = (
         query.query or ""
     ).strip()
-
-    # ========================================================
-    # ONLY NUMBERS ARE VALID
-    # ========================================================
 
     if not query_text:
 
@@ -3101,18 +3024,10 @@ def inline_query(query):
 
         return
 
-    # ========================================================
-    # FIND ONLY THIS USER'S POST
-    # ========================================================
-
     post = get_final_post(
         user_id,
         post_number
     )
-
-    # ========================================================
-    # NO POST = NO RESULT
-    # ========================================================
 
     if not post:
 
@@ -3124,10 +3039,6 @@ def inline_query(query):
         )
 
         return
-
-    # ========================================================
-    # BUILD URL BUTTON KEYBOARD
-    # ========================================================
 
     keyboard = None
 
@@ -3151,10 +3062,6 @@ def inline_query(query):
         "caption"
     ]
 
-    # ========================================================
-    # PHOTO
-    # ========================================================
-
     if (
         message_type == "photo"
         and file_id
@@ -3168,10 +3075,6 @@ def inline_query(query):
                 reply_markup=keyboard
             )
         )
-
-    # ========================================================
-    # VIDEO
-    # ========================================================
 
     elif (
         message_type == "video"
@@ -3188,10 +3091,6 @@ def inline_query(query):
             )
         )
 
-    # ========================================================
-    # AUDIO
-    # ========================================================
-
     elif (
         message_type == "audio"
         and file_id
@@ -3205,10 +3104,6 @@ def inline_query(query):
                 reply_markup=keyboard
             )
         )
-
-    # ========================================================
-    # DOCUMENT
-    # ========================================================
 
     elif (
         message_type == "document"
@@ -3226,10 +3121,6 @@ def inline_query(query):
             )
         )
 
-    # ========================================================
-    # ANIMATION / GIF
-    # ========================================================
-
     elif (
         message_type == "animation"
         and file_id
@@ -3244,10 +3135,6 @@ def inline_query(query):
                 reply_markup=keyboard
             )
         )
-
-    # ========================================================
-    # TEXT
-    # ========================================================
 
     elif message_type == "text":
 
@@ -3265,10 +3152,6 @@ def inline_query(query):
             )
         )
 
-    # ========================================================
-    # RETURN RESULT
-    # ========================================================
-
     bot.answer_inline_query(
         query.id,
         results,
@@ -3283,14 +3166,7 @@ def inline_query(query):
 
 
 # ============================================================
-# ADD CHANNEL (manual registration)
-#
-# The automatic my_chat_member detection only fires at the
-# moment the bot is promoted. If that event was ever missed
-# (bot made admin before this feature existed, downtime,
-# etc.), this lets the user register the channel by hand —
-# but the bot must ALREADY be an Admin there, otherwise it
-# has no way to post to it, so we verify that before saving.
+# ADD CHANNEL
 # ============================================================
 
 @bot.callback_query_handler(
@@ -3455,12 +3331,7 @@ It will now show up under the <b>Forward</b> option on any post.
 
 
 # ============================================================
-# TRACK CHANNELS WHERE THE BOT IS ADMIN
-#
-# Telegram sends this update whenever the bot's own status
-# changes in a chat (added, promoted, demoted, removed...).
-# We only care about channels, and only store/drop the entry
-# when the bot becomes / stops being an administrator there.
+# TRACK CHANNELS
 # ============================================================
 
 @bot.my_chat_member_handler()
@@ -3503,7 +3374,7 @@ def track_bot_admin_channels(update):
 
 
 # ============================================================
-# FORWARD POST TO A CHANNEL
+# FORWARD POST TO CHANNEL
 # ============================================================
 
 @bot.callback_query_handler(
@@ -3733,7 +3604,6 @@ def cancel(message):
         chat_id
     )
 
-    # Preserve welcome message
     session = get_session(
         user_id
     )
@@ -3778,6 +3648,7 @@ def run_bot():
     print("=" * 50)
     print("Inline Mode: ENABLED")
     print("Per-user Post IDs: ENABLED")
+    print("Render Web Service: ENABLED")
     print("Status: Running...")
     print("=" * 50)
 
@@ -3819,30 +3690,67 @@ def run_bot():
 
 
 # ============================================================
-# START BOT
+# FLASK WEB SERVER FOR RENDER
+# ============================================================
+
+app = Flask(__name__)
+
+
+@app.route("/")
+def home():
+
+    return "POST BUTTON MAKER BOT IS RUNNING"
+
+
+@app.route("/health")
+def health():
+
+    return "OK"
+
+
+def run_web_server():
+
+    port = int(
+        os.environ.get(
+            "PORT",
+            "10000"
+        )
+    )
+
+    app.run(
+        host="0.0.0.0",
+        port=port
+    )
+
+
+# ============================================================
+# START BOT + WEB SERVER
 # ============================================================
 
 if __name__ == "__main__":
 
     try:
 
-        if not BOT_TOKEN:
+        print(
+            "✅ BOT_TOKEN found!"
+        )
 
-            print(
-                "❌ ERROR: BOT_TOKEN is empty!"
-            )
+        print(
+            "🌐 Starting Render web server..."
+        )
 
-        else:
+        web_thread = Thread(
+            target=run_web_server,
+            daemon=True
+        )
 
-            print(
-                "✅ Bot token found!"
-            )
+        web_thread.start()
 
-            print(
-                "🔄 Starting bot..."
-            )
+        print(
+            "🤖 Starting Telegram bot..."
+        )
 
-            run_bot()
+        run_bot()
 
     except Exception as e:
 
